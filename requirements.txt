@@ -1,0 +1,10 @@
+# requirements.txt
+streamlit
+pandas
+openpyxl
+altair
+XlsxWriter
+seaborn
+matplotlib
+numpy
+

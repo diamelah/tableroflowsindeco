@@ -2,6 +2,7 @@ import unicodedata
 import re
 from dolores_keywords import dolores
 
+
 # 🔄 Diccionario de sinónimos (clave → lista de sinónimos que se normalizan a esa clave)
 sinonimos = {
     "facturacion": ["factura", "boleta", "cobro"],
@@ -20,6 +21,7 @@ conectores = {
     # Puedes agregar aquí cualquier palabra adicional que consideres “conector”
 }
 
+
 def normalizar_texto(texto):
     """
     1) Pasa a minúsculas
@@ -36,12 +38,12 @@ def normalizar_texto(texto):
     # Quitar acentos/tildes
     texto = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('utf-8')
     # Reemplazar todo lo que no sea letra o dígito por espacio
-    texto = re.sub(r'[^\w\s]', ' ', texto)
-    # Tokenizar
-    palabras = texto.split()
-    # Eliminar los conectores (stopwords)
-    palabras_filtradas = [p for p in palabras if p not in conectores]
-    return ' '.join(palabras_filtradas).strip()
+    texto = re.sub(r"[^\w\s]", " ", texto)
+    # Separar en tokens y filtrar conectores
+    tokens = [tok for tok in texto.split() if tok not in conectores]
+    # Reconstruir frase limpia
+    return " ".join(tokens)
+
 
 def expandir_sinonimos(frase):
     """
@@ -53,6 +55,7 @@ def expandir_sinonimos(frase):
             # Buscamos coincidencia de palabra completa (\b...\b)
             frase = re.sub(rf"\b{re.escape(sin)}\b", clave, frase)
     return frase
+
 
 def contiene_clave_flexible(frase_cliente, clave_normalizada):
     """
@@ -67,47 +70,34 @@ def contiene_clave_flexible(frase_cliente, clave_normalizada):
         # clave de una sola palabra: usamos word-boundaries
         return bool(re.search(rf"\b{re.escape(clave_normalizada)}\b", frase_cliente))
 
+
 def detectar_dolor(verbatim):
     """
-    Devuelve la categoría de 'dolor' correspondiente al texto de entrada.
-    - Si no es un string o está vacío (o solo tiene símbolos), devuelve "Sin Dolor Detectado".
-    - Si no contiene al menos 3 letras seguidas, devuelve "Sin Dolor Detectado".
-    - Luego normaliza y expande sinónimos.
-    - Recorre todas las categorías de 'dolores' (excepto "Indefinido") y, para cada frase clave:
-      - La normaliza con normalizar_texto().
-      - Si no queda nada tras normalizar (""), la salta.
-      - Aplica contiene_clave_flexible() para hacer matching.
-      - Si encuentra coincidencia, devuelve la categoría correspondiente.
-    - Si no encuentra nada, devuelve "Sin Dolor Detectado".
+    1) Validación inicial: retorna Sin Dolor Detectado si no hay texto relevante.
+    2) Normaliza y expande sinónimos.
+    3) Recorre cada categoría en 'dolores' (salta "Indefinido" y "Vacío").
+    4) Por cada frase clave, si hay match flexible, devuelve la categoría.
+    5) Finalmente, si nada encaja, retorna "Sin Dolor Detectado".
     """
-    # 1) Si no es texto válido o está vacío (sin caracteres alfanuméricos)
+    # 1) Verificar tipo y contenido básico
     if not isinstance(verbatim, str) or not verbatim.strip():
         return "Sin Dolor Detectado"
-
-    # 2) Si no hay al menos 3 letras consecutivas (para evitar que “...” o “123” matchee)
+    # Exigir al menos 3 letras consecutivas (evita cadenas no relevantes)
     if not re.search(r"\b[a-zA-Z]{3,}\b", verbatim):
         return "Sin Dolor Detectado"
 
-    # 3) Normalizar y expandir sinónimos
-    frase_cliente = normalizar_texto(verbatim)
-    frase_cliente = expandir_sinonimos(frase_cliente)
+    # 2) Normalizar y expandir sinónimos
+    verbatim_norm = normalizar_texto(verbatim)
+    verbatim_norm = expandir_sinonimos(verbatim_norm)
 
-    # 4) Recorrer cada categoría de 'dolores' (importado de dolores_keywords.py)
+    # 3) Recorrer categorías principales
     for categoria, lista_frases in dolores.items():
-        # Saltamos explícitamente la categoría "Indefinido"
-        if categoria == "Indefinido":
+        if categoria in ["Indefinido", "Vacío"]:
             continue
-
         for frase_clave in lista_frases:
-            # Normalizar la frase clave
             clave_norm = normalizar_texto(frase_clave)
-            # Si la frase clave normalizada quedó vacía, saltamos
-            if not clave_norm:
-                continue
-
-            # Si coincide (usando lógica flexible), devolvemos la categoría
-            if contiene_clave_flexible(frase_cliente, clave_norm):
+            if clave_norm and contiene_clave_flexible(verbatim_norm, clave_norm):
                 return categoria
 
-    # 5) Si no hubo coincidencias en ninguna categoría
+    # 4) Ninguna coincidencia: fallback
     return "Sin Dolor Detectado"

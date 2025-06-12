@@ -86,6 +86,31 @@ def mostrar_nps_general(df):
     st.markdown("### Q2.1 ¿Cuál fue el factor que más influyó en tu nota? por Grupo NPS")
     tabla_q21 = pd.crosstab(df[col_q21].fillna("Vacío"), df[col_nps_group].fillna("Vacío"))
     st.dataframe(tabla_q21)
+    
+# ————————————————————————————————
+    # Tabla de “Dolor” por Mes (todas las categorías)
+    if "Dolor" in df.columns and "Fecha" in df.columns:
+        df["Fecha_dt"] = pd.to_datetime(df["Fecha"], errors="coerce")
+        df["Mes"] = df["Fecha_dt"].dt.to_period("M").astype(str)
+
+        tabla_dolor_mes = pd.crosstab(
+            df["Dolor"].fillna("Sin Dolor Detectado"),
+            df["Mes"].fillna("Sin Fecha")
+        )
+
+        st.markdown("### 📊 Q. de Dolor por Mes (todas las categorías)")
+        st.dataframe(tabla_dolor_mes)
+
+        output_dolor = BytesIO()
+        tabla_dolor_mes.to_excel(output_dolor, index=True, engine='openpyxl')
+        st.download_button(
+            label="📥 Descargar tabla de Dolor por Mes (completa)",
+            data=output_dolor.getvalue(),
+            file_name="tabla_dolor_por_mes_completa.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+# ————————————————————————————————
+
 
 
 # --- Tabla principal de verbatims ---
@@ -191,7 +216,7 @@ def mostrar_tabla_general(df):
             df["Fecha_dt"] = pd.to_datetime(df["Fecha"], errors="coerce")
             df["Mes"] = df["Fecha_dt"].dt.strftime("%Y-%m")
             pivot_q31 = pd.crosstab(df[col_q31], df["Mes"])
-            st.subheader("📊 Frecuencia de Q3.1 por Mes")
+            st.subheader("📊 ¿Qué tan fácil te resulta usar Flow? Q3.1 por Mes")
             st.dataframe(pivot_q31)
 
             output_pivot = BytesIO()
@@ -210,7 +235,8 @@ def mostrar_tabla_general(df):
 # --- Mostrar Contacto y Resolución (sustituido por doble entrada Q5.1) ---
 def mostrar_contacto_y_resolucion(df):
     df.columns = df.columns.str.strip()
-    st.markdown("### 📊 Frecuencia de Q5.1 por Mes (filtrada por Q5.2 y Q5.3)")
+    st.markdown("### 📊 ¿Te contactaste con nuestro centro de atención? Q5.1")
+    st.markdown("###### Q5.1 por Mes (campos Q5.2 | CANAL, Q5.3 | Resuelto)")
 
     # Columnas de interés
     col_q51 = "¿Te contactaste con nuestro centro de atención? Q5.1"
@@ -318,58 +344,4 @@ def mostrar_precio_promociones(df_filtrado, df_original, seleccion_grupo):
     )
 
     st.divider()
-    # --- Gráfico de torta Q3.5 ---
-    st.subheader("📊 Percepción Precio/Calidad")   
-    col_q35 = "¿Cómo calificas la relación entre lo que pagas y el servicio que te brindamos?"
-
-    # Determinar DataFrame para gráfico: todo si "Todos", sino filtrado
-    if seleccion_grupo == "Todos":
-        df_para_grafico = df_original.copy()
-    else:
-        df_para_grafico = df_filtrado.copy()
-
-    if st_echarts and col_q35 in df_para_grafico.columns:
-        conteo = (
-            df_para_grafico[col_q35]
-            .dropna()
-            .astype(str)
-            .str.strip()
-            .loc[lambda x: ~x.isin(["", "-", "--", ".", "...", "NS/NC"]) ]
-            .value_counts()
-            .reset_index()
-        )
-        conteo.columns = ["name", "value"]
-        data = conteo.to_dict(orient="records")
-
-        if not data:
-            st.info("ℹ️ No hay suficientes respuestas válidas en Q3.5 para mostrar el gráfico.")
-        else:
-            options = {
-                "title": {
-                    "text": " ",
-                    "subtext": "Q3.5",
-                    "left": "center"
-                },
-                "tooltip": {"trigger": "item"},
-                "legend": {"orient": "vertical", "left": "left"},
-                "series": [
-                    {
-                        "name": "Q3.5",
-                        "type": "pie",
-                        "radius": "50%",
-                        "data": data,
-                        "emphasis": {
-                            "itemStyle": {
-                                "shadowBlur": 10,
-                                "shadowOffsetX": 0,
-                                "shadowColor": "rgba(0, 0, 0, 0.5)",
-                            }
-                        },
-                    }
-                ],
-            }
-            st_echarts(options=options, height="500px")
-    elif not st_echarts:
-        st.info("ℹ️ ECharts no está disponible. Instalalo con: pip install streamlit-echarts")
-    else:
-        st.info("ℹ️ No se encontró la columna Q3.5 para graficar.")
+    
